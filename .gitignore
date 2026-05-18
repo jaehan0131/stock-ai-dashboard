@@ -1,0 +1,36 @@
+# === 시크릿 (절대 커밋 금지) ===
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# === Node / Next.js ===
+node_modules/
+.next/
+out/
+dist/
+*.log
+.DS_Store
+
+# === DB / 로컬 데이터 ===
+*.sqlite
+*.sqlite3
+*.db
+data/
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
