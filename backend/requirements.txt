@@ -1,0 +1,8 @@
+pydantic>=2.7
+pydantic-settings>=2.3
+sqlalchemy>=2.0
+alembic>=1.13
+anthropic>=0.40
+feedparser>=6.0
+fastapi>=0.110
+uvicorn[standard]>=0.27
