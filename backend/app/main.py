@@ -6,15 +6,38 @@ api/signals.py의 approve는 *상태 변경*일 뿐, 실제 매매는 Phase G �
 
 from __future__ import annotations
 
+import logging
+import logging.config
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s",
+)
+
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api import market as market_router
 from app.api import signals as signals_router
+from app.core.scheduler import scheduler_lifespan
 from app.storage import get_db
 
-app = FastAPI(title="주식 AI 대시보드 API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """startup → 스케줄러 시작, shutdown → 스케줄러 정리.
+
+    scheduler_lifespan()의 __aexit__가 모든 정리를 책임지므로 여기서는 그냥 yield만.
+    """
+    async with scheduler_lifespan():
+        yield
+
+
+app = FastAPI(title="주식 AI 대시보드 API", version="0.1.0", lifespan=lifespan)
 
 # 학습 단계 — 모든 origin 허용. production 진입 전 좁힐 것.
 app.add_middleware(
@@ -25,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(signals_router.router)
+app.include_router(market_router.router)
 
 
 @app.get("/healthz")

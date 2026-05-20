@@ -1,7 +1,11 @@
-// Server Component (async). "use client" 미사용 — Next.js 서버에서 fetch 후 HTML 렌더.
-// 백엔드 /signals/pending 조회 → 표로 표시. 실패 시 한국어 에러 박스.
+// Server Component (async). Next.js 서버에서 fetch 후 HTML 렌더.
+// 헤더(제목 + AutoRefresh) → 시세 카드 그리드 → 시그널 표.
 
 import SignalActions from "./SignalActions";
+import AutoRefresh from "@/components/AutoRefresh";
+import PriceCard from "@/components/PriceCard";
+
+const WATCH_LIST = ["005930", "000660"];
 
 type Signal = {
   id: number;
@@ -50,7 +54,16 @@ export default async function Home() {
 
   return (
     <main className="max-w-6xl mx-auto p-8">
-      <h1 className="text-2xl font-bold mb-4">Pending 시그널</h1>
+      <header className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Pending 시그널</h1>
+        <AutoRefresh />
+      </header>
+
+      <section className="grid grid-cols-2 gap-4 mb-8">
+        {WATCH_LIST.map((code) => (
+          <PriceCard key={code} stockCode={code} />
+        ))}
+      </section>
 
       {errorMsg ? (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded">
