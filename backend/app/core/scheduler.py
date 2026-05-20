@@ -9,9 +9,10 @@ CLAUDE.md 절대 룰 매핑
 스케줄
 - RSS 시그널 파이프라인: 30분마다 (항상 실행)
 - 시세 캐시 갱신: 5분마다 (장중에만 실행)
+- 체결 폴링: 1분마다 (장중에만 실행) — Phase H
 
 향후 개선
-- WATCHLIST를 DB 테이블 또는 settings로 이동 (Phase G 진입 시)
+- WATCHLIST를 DB 테이블 또는 settings로 이동
 - pykrx로 한국 휴장일 검증 추가 (현재는 평일+시간만 체크)
 - price_cache를 Redis 등 공유 캐시로 이동 (단일 인스턴스 한정 현황)
 """
@@ -108,6 +109,46 @@ async def _price_cache_job() -> None:
             logger.exception("scheduler[price]: 예외 code=%s — %s", code, e)
 
 
+async def _order_poll_job() -> None:
+    """장중에만 — pending + dry_run=False + ODNO 있는 OrderLog 체결조회."""
+    if not is_market_open():
+        logger.debug("scheduler[poll]: 장외 — 스킵")
+        return
+
+    # 지연 import — startup 시점에 trading 모듈 import 회피 + 순환 방지
+    from sqlalchemy import select
+
+    from app.storage import SessionLocal
+    from app.storage.models import OrderLog
+    from app.trading.kis_order import fetch_order_status
+
+    db = SessionLocal()
+    try:
+        stmt = select(OrderLog.id).where(
+            OrderLog.status == "pending",
+            OrderLog.dry_run.is_(False),
+            OrderLog.kis_order_number.is_not(None),
+        )
+        pending_ids = list(db.scalars(stmt))
+    finally:
+        db.close()
+
+    if not pending_ids:
+        logger.debug("scheduler[poll]: pending 0건 — 스킵")
+        return
+
+    logger.info("scheduler[poll]: %s건 체결조회", len(pending_ids))
+    for oid in pending_ids:
+        try:
+            result = await fetch_order_status(oid)
+            if result.get("changed"):
+                logger.info("scheduler[poll]: order_log_id=%s 상태 전이", oid)
+        except Exception as e:
+            logger.exception(
+                "scheduler[poll]: order_log_id=%s 실패 — %s", oid, e
+            )
+
+
 @asynccontextmanager
 async def scheduler_lifespan() -> AsyncIterator[None]:
     """AsyncScheduler 생성·잡 등록·백그라운드 실행·정리까지 컨텍스트로 묶는다.
@@ -126,9 +167,13 @@ async def scheduler_lifespan() -> AsyncIterator[None]:
             IntervalTrigger(minutes=5),
             id="price_cache_refresh",
         )
+        await sched.add_schedule(
+            _order_poll_job,
+            IntervalTrigger(minutes=1),
+            id="order_poll",
+        )
         logger.info(
-            "scheduler: 시작됨 — rss=30min(항상), price=5min(장중만, watchlist=%s)",
-            WATCHLIST,
+            "scheduler: 시작됨 — rss=30min(항상), price=5min(장중만), poll=1min(장중만)"
         )
         try:
             yield

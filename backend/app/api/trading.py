@@ -1,6 +1,7 @@
-"""주문 API 라우터 — 단일 진입점 POST /trading/order + 조회 GET /trading/orders.
+"""주문 API 라우터 — POST /trading/order, GET /trading/orders, POST /poll.
 
-CLAUDE.md 절대 룰: dry_run 기본 True. 사용자 클릭 트리거만, 스케줄러 호출 0.
+CLAUDE.md 절대 룰: dry_run 기본 True. 사용자 클릭 트리거만, 스케줄러 자동 호출 0.
+체결 폴링도 *조회만* — 주문 트리거 0행.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ from sqlalchemy import select
 
 from app.storage import SessionLocal
 from app.storage.models import OrderLog
-from app.trading.kis_order import place_order
+from app.trading.kis_order import fetch_order_status, place_order
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 
@@ -73,6 +74,7 @@ async def list_orders() -> list[dict]:
                 "order_type": r.order_type,
                 "dry_run": r.dry_run,
                 "status": r.status,
+                "kis_order_number": r.kis_order_number,
                 "error_message": r.error_message,
                 "created_at": r.created_at.isoformat(),
             }
@@ -80,3 +82,12 @@ async def list_orders() -> list[dict]:
         ]
     finally:
         db.close()
+
+
+@router.post("/orders/{order_log_id}/poll")
+async def poll_order(order_log_id: int) -> dict:
+    """단건 즉시 체결조회. dry_run/non-pending/no-ODNO 행은 skipped 반환.
+
+    UI의 "체결 새로고침" 버튼이 호출. 스케줄러 자동 폴링과 *동일 함수* 사용.
+    """
+    return await fetch_order_status(order_log_id)

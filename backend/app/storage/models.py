@@ -123,3 +123,8 @@ class OrderLog(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # KIS 응답의 ODNO. dry_run / 토큰 실패 / 거부 행은 NULL.
+    kis_order_number: Mapped[str | None] = mapped_column(
+        String(32), index=True, default=None
+    )

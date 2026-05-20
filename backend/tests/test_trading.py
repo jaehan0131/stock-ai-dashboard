@@ -76,3 +76,52 @@ async def test_limit_with_price() -> None:
     payload = result["data"]["payload"]
     assert payload["ORD_DVSN"] == "01"  # 지정가
     assert payload["ORD_UNPR"] == "82000"
+
+
+@pytest.mark.asyncio
+async def test_poll_skips_dry_run() -> None:
+    """dry_run 행은 폴링 시 KIS 호출 없이 skipped 반환."""
+    from app.trading.kis_order import fetch_order_status
+
+    r1 = await place_order("005930", "buy", 1, dry_run=True)
+    result = await fetch_order_status(r1["order_log_id"])
+    assert result["success"] is True
+    assert result["data"]["skipped"] == "dry_run"
+    assert result["changed"] is False
+
+
+@pytest.mark.asyncio
+async def test_poll_not_found() -> None:
+    """존재하지 않는 OrderLog id."""
+    from app.trading.kis_order import fetch_order_status
+
+    result = await fetch_order_status(99999999)
+    assert result["success"] is False
+    assert result["changed"] is False
+
+
+@pytest.mark.asyncio
+async def test_poll_skips_non_pending() -> None:
+    """이미 결정된(filled 등) 행은 폴링 시 skipped — KIS 호출 0."""
+    from app.storage import SessionLocal
+    from app.storage.models import OrderLog
+    from app.trading.kis_order import fetch_order_status
+
+    r1 = await place_order("005930", "buy", 1, dry_run=True)
+    # 모의: dry_run 행을 filled 상태로 강제 변환
+    db = SessionLocal()
+    try:
+        row = db.get(OrderLog, r1["order_log_id"])
+        assert row is not None
+        row.dry_run = False
+        row.status = "filled"
+        row.kis_order_number = "FAKE12345"
+        db.commit()
+    finally:
+        db.close()
+
+    result = await fetch_order_status(r1["order_log_id"])
+    assert result["success"] is True
+    assert "skipped" in result["data"]
+    assert result["data"]["skipped"].startswith("status=")
+    assert result["changed"] is False
