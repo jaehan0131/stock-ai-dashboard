@@ -28,6 +28,7 @@ class SignalRead(BaseModel):
     combined_score: int
     weight_sum: Decimal
     supporting_log_ids: list[int]
+    target_stocks: list[str]
     reasoning: str
     signal_log_id: int
     user_status: str
@@ -37,6 +38,16 @@ class SignalRead(BaseModel):
     @classmethod
     def _parse_log_ids(cls, v: Any) -> Any:
         """ORM의 JSON 문자열을 list[int]로 파싱. 이미 list면 그대로."""
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+    @field_validator("target_stocks", mode="before")
+    @classmethod
+    def _parse_stocks(cls, v: Any) -> Any:
+        """ORM의 JSON 문자열 또는 None → list[str]. None은 빈 리스트로 정규화."""
+        if v is None:
+            return []
         if isinstance(v, str):
             return json.loads(v)
         return v

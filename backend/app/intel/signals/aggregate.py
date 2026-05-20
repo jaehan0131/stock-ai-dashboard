@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Final, Literal
 
+from app.intel.signals.stock_matcher import match_stocks
 from app.intel.summarizer import SummarizedItem
 from app.llm import Task, call_llm, default_system_blocks
 from app.storage import SessionLocal
@@ -74,6 +75,7 @@ class Signal:
     supporting_log_ids: list[int]
     reasoning: str
     signal_log_id: int
+    target_stocks: list[str]  # stock_matcher 결과. 빈 리스트면 매크로 시그널.
 
 
 def _rule_prefix(rule: str) -> str | None:
@@ -132,7 +134,7 @@ def generate_signals(items: list[SummarizedItem]) -> list[Signal]:
         2. applied_rule §1-N으로 그룹화 (§0/§2-N 등 폐기)
         3. weight_sum >= 1.0 그룹만 통과 (LLM 호출 비용 절감)
         4. Sonnet 호출 1회로 다중 그룹 처리
-        5. 응답 검증·그룹 매칭 후 Signal 리스트 반환
+        5. 응답 검증·그룹 매칭 후 시그널별로 stock_matcher 호출 → target_stocks 채움
     실패 시 빈 리스트 + logger.warning. RuntimeError(키 미설정)는 그대로 raise.
     """
     if not items:
@@ -199,6 +201,7 @@ def generate_signals(items: list[SummarizedItem]) -> list[Signal]:
                 logger.warning("잘못된 direction: %r", direction)
                 continue
             group = eligible[rule_key]
+            reasoning = str(entry["reasoning"])
             signals.append(
                 Signal(
                     direction=direction,
@@ -211,8 +214,9 @@ def generate_signals(items: list[SummarizedItem]) -> list[Signal]:
                     supporting_log_ids=[
                         it.llm_call_log_id for it in group
                     ],
-                    reasoning=str(entry["reasoning"]),
+                    reasoning=reasoning,
                     signal_log_id=int(result["log_id"]),
+                    target_stocks=match_stocks(reasoning),
                 )
             )
         except (KeyError, TypeError, ValueError) as e:
@@ -229,6 +233,7 @@ def _signal_to_orm(signal: Signal) -> SignalORM:
 
     weight_sum은 float → Decimal 변환 시 반드시 `str()` 경유 — 직접 `Decimal(float)`은
     부동소수점 오차로 1.4가 1.39999...로 저장될 위험.
+    target_stocks는 빈 리스트면 None(NULL) 저장, 채워졌으면 JSON 문자열.
     """
     return SignalORM(
         direction=signal.direction,
@@ -239,6 +244,9 @@ def _signal_to_orm(signal: Signal) -> SignalORM:
         supporting_log_ids=json.dumps(signal.supporting_log_ids),
         reasoning=signal.reasoning,
         signal_log_id=signal.signal_log_id,
+        target_stocks=(
+            json.dumps(signal.target_stocks) if signal.target_stocks else None
+        ),
     )
 
 

@@ -81,3 +81,6 @@ class Signal(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(
         UtcDateTime, default=None
     )
+
+    # 종목 매칭 결과 — JSON 배열 문자열. None이면 매크로 시그널(종목 미지정).
+    target_stocks: Mapped[str | None] = mapped_column(Text, default=None)

@@ -16,6 +16,7 @@ type Signal = {
   combined_score: number;
   weight_sum: string;
   supporting_log_ids: number[];
+  target_stocks: string[];
   reasoning: string;
   signal_log_id: number;
   user_status: string;
@@ -85,6 +86,7 @@ export default async function Home() {
               <th className="border px-3 py-2 text-left">id</th>
               <th className="border px-3 py-2 text-left">방향</th>
               <th className="border px-3 py-2 text-left">대상</th>
+              <th className="border px-3 py-2 text-left">종목</th>
               <th className="border px-3 py-2 text-left">룰</th>
               <th className="border px-3 py-2 text-right">점수</th>
               <th className="border px-3 py-2 text-right">가중치</th>
@@ -101,6 +103,9 @@ export default async function Home() {
                   {s.direction}
                 </td>
                 <td className="border px-3 py-2">{s.target}</td>
+                <td className="border px-3 py-2 font-mono text-xs">
+                  {s.target_stocks.length > 0 ? s.target_stocks.join(", ") : "—"}
+                </td>
                 <td className="border px-3 py-2">{s.applied_rule}</td>
                 <td className="border px-3 py-2 text-right">{s.combined_score}</td>
                 <td className="border px-3 py-2 text-right">{s.weight_sum}</td>
