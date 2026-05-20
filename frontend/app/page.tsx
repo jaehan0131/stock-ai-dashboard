@@ -112,7 +112,11 @@ export default async function Home() {
                 <td className="border px-3 py-2">{formatKst(s.created_at)}</td>
                 <td className="border px-3 py-2">{s.user_status}</td>
                 <td className="border px-3 py-2">
-                  <SignalActions signalId={s.id} />
+                  <SignalActions
+                    signalId={s.id}
+                    direction={s.direction}
+                    targetStocks={s.target_stocks}
+                  />
                 </td>
               </tr>
             ))}

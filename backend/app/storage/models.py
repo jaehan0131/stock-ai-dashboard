@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Numeric, String, Text
+from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -84,3 +84,42 @@ class Signal(Base):
 
     # 종목 매칭 결과 — JSON 배열 문자열. None이면 매크로 시그널(종목 미지정).
     target_stocks: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+class OrderLog(Base):
+    """주문 시도 영구 로그 — dry_run 포함 모든 시도 기록 (CLAUDE.md 절대 룰).
+
+    체결 추적은 별도 단계(Phase H) — 본 테이블은 *주문 접수 시점*까지만.
+    """
+
+    __tablename__ = "order_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # signal-driven 주문은 FK 연결, standalone 수동 주문은 NULL
+    signal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal.id"), index=True, default=None
+    )
+
+    stock_code: Mapped[str] = mapped_column(String(6), nullable=False)
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)  # buy/sell
+    quantity: Mapped[int] = mapped_column(nullable=False)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), default=None)
+    order_type: Mapped[str] = mapped_column(String(8), nullable=False)  # market/limit
+
+    # dry_run=True면 KIS 미호출 + 페이로드만 로깅. 기본 True 강제 (CLAUDE.md 절대 룰).
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # 요청·응답 페이로드 영구 보관 — 감사·재현 위해 전체 JSON.
+    request_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    response_payload: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # pending(접수) / filled(체결) / rejected / dry_run
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    error_message: Mapped[str | None] = mapped_column(String(1024), default=None)
+
+    created_at: Mapped[datetime] = mapped_column(
+        UtcDateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

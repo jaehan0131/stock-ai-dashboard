@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.api import market as market_router
 from app.api import signals as signals_router
+from app.api import trading as trading_router
 from app.core.scheduler import scheduler_lifespan
 from app.storage import get_db
 
@@ -49,6 +50,7 @@ app.add_middleware(
 
 app.include_router(signals_router.router)
 app.include_router(market_router.router)
+app.include_router(trading_router.router)
 
 
 @app.get("/healthz")
